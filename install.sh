@@ -887,11 +887,11 @@ prepare_source() {
 fetch_release_assets() {
   repo_ok || return 1
 
-  local arch
-  case "$ARCH_RAW" in
-    x86_64) arch="amd64" ;;
+  local arch arch_raw="${ARCH_RAW:-$(uname -m)}"
+  case "$arch_raw" in
+    x86_64|amd64) arch="amd64" ;;
     aarch64|arm64) arch="arm64" ;;
-    *) detail "arsitektur $ARCH_RAW belum punya aset rilis -> build dari sumber"; return 1 ;;
+    *) detail "arsitektur ${arch_raw} belum punya aset rilis -> build dari sumber"; return 1 ;;
   esac
 
   local base
