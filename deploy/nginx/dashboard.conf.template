@@ -1,0 +1,56 @@
+# nginx reverse proxy untuk Server Dashboard (template).
+#
+# File ini adalah TEMPLATE yang di-render oleh install.sh (placeholder
+# __NAMA__ diganti nilai sebenarnya). Kalau Anda memasang manual, salin file
+# ini, ganti placeholder-nya sendiri, lalu:
+#
+#   install -m 0644 dashboard.conf /etc/nginx/sites-available/dashboard.conf
+#   ln -sf /etc/nginx/sites-available/dashboard.conf /etc/nginx/sites-enabled/dashboard.conf
+#   nginx -t && systemctl reload nginx
+#
+# Placeholder:
+#   __SERVER_NAME__        nama domain, atau "_" bila diakses lewat IP
+#   __DEFAULT_SERVER__     " default_server" (mode IP) atau kosong (mode domain)
+#   __APP_PORT__           port loopback aplikasi Go (default 8080)
+#   __MAX_BODY__           batas unggah, harus >= DASH_MAX_UPLOAD_SIZE (default 512m)
+
+upstream dashboard_app {
+    server 127.0.0.1:__APP_PORT__;
+    keepalive 16;
+}
+
+server {
+    listen 80__DEFAULT_SERVER__;
+    listen [::]:80__DEFAULT_SERVER__;
+    server_name __SERVER_NAME__;
+
+    # Perbolehkan validasi HTTP-01 Let's Encrypt sebelum redirect aktif.
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        proxy_pass http://dashboard_app;
+        proxy_http_version 1.1;
+
+        # Dukungan WebSocket untuk /api/terminal/sessions/{id}/stream
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+
+        # Unggah berkas (POST /api/files/upload): batas harus >= DASH_MAX_UPLOAD_SIZE.
+        # Buffering permintaan sengaja dibiarkan aktif (default): nginx membaca
+        # seluruh body lebih dulu, sehingga balasan awal seperti 401/409/413 tetap
+        # sampai ke browser dan tidak berubah jadi 502 ketika aplikasi menolak
+        # unggahan sebelum body habis dibaca.
+        client_max_body_size __MAX_BODY__;
+    }
+}

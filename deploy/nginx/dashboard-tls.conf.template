@@ -1,0 +1,58 @@
+# nginx reverse proxy untuk Server Dashboard — mode HTTPS self-signed.
+#
+# Dipakai install.sh saat dipilih "tanpa domain + HTTPS self-signed": port 80
+# dialihkan ke HTTPS, dan port 443 memakai sertifikat buatan sendiri
+# (browser akan menampilkan peringatan "not trusted" — itu wajar).
+#
+# Placeholder: __SERVER_NAME__ __DEFAULT_SERVER__ __APP_PORT__ __MAX_BODY__
+#              __CERT_FILE__ __KEY_FILE__
+
+upstream dashboard_app {
+    server 127.0.0.1:__APP_PORT__;
+    keepalive 16;
+}
+
+server {
+    listen 80__DEFAULT_SERVER__;
+    listen [::]:80__DEFAULT_SERVER__;
+    server_name __SERVER_NAME__;
+
+    # Cookie sesi memakai atribut Secure, jadi seluruh trafik harus lewat HTTPS.
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl__DEFAULT_SERVER__;
+    listen [::]:443 ssl__DEFAULT_SERVER__;
+    http2 on;
+    server_name __SERVER_NAME__;
+
+    ssl_certificate     __CERT_FILE__;
+    ssl_certificate_key __KEY_FILE__;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    client_max_body_size __MAX_BODY__;
+
+    location / {
+        proxy_pass http://dashboard_app;
+        proxy_http_version 1.1;
+
+        # Dukungan WebSocket untuk /api/terminal/sessions/{id}/stream
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+    }
+}

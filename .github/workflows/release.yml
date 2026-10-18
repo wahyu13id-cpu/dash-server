@@ -1,0 +1,81 @@
+name: Release
+
+# Membuat aset rilis yang dipakai oleh install.sh pada mode Release:
+#   dashboard-linux-amd64.tar.gz   (berisi binary `dashboard`)
+#   dashboard-linux-arm64.tar.gz
+#   frontend-dist.tar.gz           (frontend hasil build Vite)
+#   SHA256SUMS
+#
+# Cara merilis:
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# Setelah itu instalasi di server bisa memakai binary siap-pakai (tanpa Go/Node):
+#   curl -fsSL https://raw.githubusercontent.com/wahyu13id-cpu/dash-server/main/install.sh | sudo bash
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish release assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build backend (linux amd64 + arm64)
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            GOOS=linux GOARCH="$arch" go build -trimpath \
+              -ldflags "-s -w -X dashboard/internal/httpapi.Version=${GITHUB_REF_NAME}" \
+              -o "dist/dashboard-linux-${arch}" ./cmd/server
+            # Simpan di dalam arsip dengan nama `dashboard` agar installer sederhana.
+            cp "dist/dashboard-linux-${arch}" dist/dashboard
+            tar -czf "dashboard-linux-${arch}.tar.gz" -C dist dashboard
+          done
+          ls -lh dashboard-linux-*.tar.gz
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          set -euo pipefail
+          cd frontend
+          npm ci --no-audit --no-fund
+          npm run build
+          tar -czf ../frontend-dist.tar.gz -C dist .
+          ls -lh ../frontend-dist.tar.gz
+
+      - name: Checksums
+        run: sha256sum dashboard-linux-*.tar.gz frontend-dist.tar.gz > SHA256SUMS
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dashboard-linux-amd64.tar.gz
+            dashboard-linux-arm64.tar.gz
+            frontend-dist.tar.gz
+            SHA256SUMS
+          generate_release_notes: true

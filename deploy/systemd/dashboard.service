@@ -1,0 +1,39 @@
+[Unit]
+Description=Server Dashboard (web UI + PTY terminal + file manager)
+Documentation=https://9.wahyu-hidayat.my.id
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# The web terminal is intentionally a full, unrestricted root shell, so the
+# whole service runs as root. This means the HTTP API, file manager and DB also
+# run as root: treat this service as a root-equivalent remote shell and never
+# expose it to untrusted networks (keep it behind HTTPS/VPN/firewall).
+User=root
+Group=root
+UMask=0022
+WorkingDirectory=/opt/dashboard
+EnvironmentFile=/etc/dashboard/dashboard.env
+ExecStart=/usr/local/bin/dashboard
+Restart=always
+RestartSec=3
+TimeoutStopSec=20
+KillMode=mixed
+
+# --- Hardening ---------------------------------------------------------------
+# Most systemd hardening is intentionally DISABLED so that root in the terminal
+# behaves like real root. In particular:
+#   * NoNewPrivileges / RestrictSUIDSGID would break setuid tools (su, sudo,
+#     passwd) and file capabilities inside the session.
+#   * CapabilityBoundingSet= (empty) would strip CAP_DAC_OVERRIDE etc., turning
+#     root into an unprivileged user.
+#   * ProtectSystem / ProtectHome / ReadWritePaths would make the filesystem
+#     read-only, blocking package installs and system administration.
+# Only non-intrusive settings are kept. Note: PrivateDevices is omitted because
+# PTY sessions need /dev/ptmx and /dev/pts.
+SystemCallArchitectures=native
+RemoveIPC=true
+
+[Install]
+WantedBy=multi-user.target
