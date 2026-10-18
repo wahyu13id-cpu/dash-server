@@ -791,8 +791,8 @@ batasi akses dengan firewall/VPN bila memungkinkan, dan gunakan password yang ku
 
 ## Batasan yang masih ada
 
-1. **Referensi visual Hermes belum diterima** pada sesi ini, sehingga tampilan saat ini adalah
-   tafsiran awal bergaya dashboard admin (lihat bagian berikutnya). Elemen visual (warna aksen,
+1. **Tampilan saat ini adalah tafsiran awal** bergaya dashboard admin, dibangun sesuai keinginan
+   dan referensi Anda sendiri (lihat bagian berikutnya). Elemen visual (warna aksen,
    ikon, kepadatan tabel) mudah disesuaikan dan **ditandai** untuk direvisi.
 2. **Tidak ada multi-user UI/role**: tabel `users` mendukung banyak pengguna dan peran, tetapi
    belum ada antarmuka manajemen pengguna (hanya akun admin awal + ganti password).
@@ -816,7 +816,7 @@ batasi akses dengan firewall/VPN bila memungkinkan, dan gunakan password yang ku
 
 ## Menyesuaikan tampilan dengan referensi visual
 
-Bagian yang **perlu disesuaikan setelah referensi Hermes diberikan**:
+Bagian yang **mudah disesuaikan dengan referensi visual Anda**:
 
 - **Warna & tema**: variabel di `frontend/src/styles/global.css` (`:root`) — aksen saat ini
   `--accent: #6366f1`. Ganti sesuai palet referensi.
@@ -828,4 +828,4 @@ Bagian yang **perlu disesuaikan setelah referensi Hermes diberikan**:
 - **Ikon**: set ikon generik di `frontend/src/components/Icons.tsx` (tanpa aset merek pihak lain).
 - **Toolbar terminal**: susunan tombol di `frontend/src/pages/TerminalPage.tsx`.
 
-Tidak ada logo, aset, atau merek Hermes yang digunakan — hanya pola tata letak dan interaksi.
+Tidak ada logo, aset, atau merek pihak lain yang digunakan — hanya pola tata letak dan interaksi, dibangun sesuai keinginan dan referensi Anda sendiri.
