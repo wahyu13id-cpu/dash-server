@@ -128,7 +128,7 @@ func Load() (*Config, error) {
 		StaticDir:           env("DASH_STATIC_DIR", "./frontend/dist"),
 		SessionTTL:          envDuration("DASH_SESSION_TTL", 12*time.Hour),
 		CookieSecure:        envBool("DASH_COOKIE_SECURE", true),
-		AllowedOrigins:      envList("DASH_ALLOWED_ORIGINS", "https://9.wahyu-hidayat.my.id"),
+		AllowedOrigins:      envList("DASH_ALLOWED_ORIGINS", "https://dash.example.com"),
 		TrustedProxy:        envBool("DASH_TRUSTED_PROXY", true),
 		Shell:               env("DASH_SHELL", "/bin/bash"),
 		TerminalMaxSessions: envInt("DASH_TERMINAL_MAX_SESSIONS", 8),

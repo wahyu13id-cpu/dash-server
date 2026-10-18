@@ -374,7 +374,7 @@ Buat `/etc/dashboard/dashboard.env` (mode `0640`, owner `root:dashboard`):
 cat > /etc/dashboard/dashboard.env <<'EOF'
 DASH_ADDR=127.0.0.1:8080
 DASH_STATIC_DIR=/opt/dashboard/frontend/dist
-DASH_ALLOWED_ORIGINS=https://9.wahyu-hidayat.my.id,http://9.wahyu-hidayat.my.id
+DASH_ALLOWED_ORIGINS=https://dash.example.com,http://dash.example.com
 DASH_COOKIE_SECURE=false          # ubah ke true setelah HTTPS aktif
 DASH_TRUSTED_PROXY=true
 DASH_SESSION_SECRET=GANTI_DENGAN_openssl_rand_hex_32
@@ -409,10 +409,15 @@ systemctl status dashboard
 
 ```bash
 install -m 0644 deploy/nginx/upgrade-map.conf /etc/nginx/conf.d/upgrade-map.conf
-install -m 0644 deploy/nginx/9.wahyu-hidayat.my.id.conf \
-    /etc/nginx/sites-available/9.wahyu-hidayat.my.id.conf
-ln -sf /etc/nginx/sites-available/9.wahyu-hidayat.my.id.conf \
-    /etc/nginx/sites-enabled/9.wahyu-hidayat.my.id.conf
+# vhost di-render dari template (ganti nama domain sesuai milik Anda):
+sed -e 's|__SERVER_NAME__|dash.example.com|g' \
+    -e 's|__DEFAULT_SERVER__||g' \
+    -e 's|__APP_PORT__|8080|g' \
+    -e 's|__MAX_BODY__|512m|g' \
+    deploy/nginx/dashboard.conf.template \
+    > /etc/nginx/sites-available/dash.example.com.conf
+ln -sf /etc/nginx/sites-available/dash.example.com.conf \
+    /etc/nginx/sites-enabled/dash.example.com.conf
 rm -f /etc/nginx/sites-enabled/default     # opsional
 nginx -t && systemctl reload nginx
 ```
@@ -421,7 +426,7 @@ nginx -t && systemctl reload nginx
 
 ```bash
 apt-get install -y certbot python3-certbot-nginx
-certbot --nginx -d 9.wahyu-hidayat.my.id
+certbot --nginx -d dash.example.com
 # Setelah sertifikat aktif, ubah:
 #   DASH_COOKIE_SECURE=true
 # lalu:
@@ -432,7 +437,7 @@ Verifikasi:
 
 ```bash
 curl -s http://127.0.0.1:8080/api/health
-curl -sI https://9.wahyu-hidayat.my.id | head
+curl -sI https://dash.example.com | head
 ```
 
 ---
@@ -455,7 +460,7 @@ Ringkasan variabel:
 | `DASH_HOME_DIR` | `/root` | Direktori kerja (dan `HOME`) untuk shell PTY baru. |
 | `DASH_STATIC_DIR` | `./frontend/dist` | Direktori build frontend. Kosong = SPA tidak disajikan. |
 | `DASH_SESSION_SECRET` | — (**wajib**) | ≥ 32 karakter. |
-| `DASH_ALLOWED_ORIGINS` | `https://9.wahyu-hidayat.my.id` | Daftar origin yang diizinkan (REST + WS). |
+| `DASH_ALLOWED_ORIGINS` | `https://dash.example.com` | Daftar origin yang diizinkan (REST + WS). |
 | `DASH_COOKIE_SECURE` | `true` | Set `false` hanya untuk http lokal. |
 | `DASH_TRUSTED_PROXY` | `true` | Percaya `X-Forwarded-*` dari reverse proxy. |
 | `DASH_SESSION_TTL` | `12h` | Masa berlaku sesi login. |
@@ -559,7 +564,7 @@ Contoh:
 # login (cookie disimpan)
 curl -s -c jar.txt -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"rahasia123"}' \
-  https://9.wahyu-hidayat.my.id/api/auth/login
+  https://dash.example.com/api/auth/login
 
 # CSRF token dari cookie
 CSRF=$(awk '$6=="dash_csrf"{print $7}' jar.txt)
@@ -567,7 +572,7 @@ CSRF=$(awk '$6=="dash_csrf"{print $7}' jar.txt)
 # buat file
 curl -s -b jar.txt -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' \
   -d '{"path":"catatan.txt","kind":"file"}' \
-  https://9.wahyu-hidayat.my.id/api/files
+  https://dash.example.com/api/files
 ```
 
 ---

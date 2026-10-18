@@ -1,6 +1,6 @@
 [Unit]
 Description=Server Dashboard (web UI + PTY terminal + file manager)
-Documentation=https://9.wahyu-hidayat.my.id
+Documentation=https://dash.example.com
 After=network-online.target
 Wants=network-online.target
 
