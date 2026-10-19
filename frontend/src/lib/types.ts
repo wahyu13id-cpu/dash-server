@@ -420,3 +420,139 @@ export interface SshHostKeyInfo {
 }
 
 export type SshSecretKind = "password" | "passphrase";
+
+// --- host operations (services, processes, logs, packages) ------------------
+
+/** What the current host can actually do; the UI hides what is unsupported. */
+export interface OpsAvailability {
+  systemd: boolean;
+  journal: boolean;
+  processes: boolean;
+  packageManager: string;
+  rebootRequired: boolean;
+  logDir: string;
+}
+
+export interface ServiceUnit {
+  name: string;
+  description: string;
+  load: string;
+  active: string;
+  sub: string;
+  unitFile: string;
+  fragmentPath?: string;
+  mainPid?: number;
+  memoryBytes?: number;
+  since?: string;
+}
+
+export interface ServiceList {
+  units: ServiceUnit[] | null;
+  total: number;
+  running: number;
+  failed: number;
+  collectedAt: string;
+}
+
+export interface LogEntry {
+  seq: number;
+  time: string;
+  priority: number;
+  unit?: string;
+  identifier?: string;
+  pid?: number;
+  message: string;
+}
+
+export interface ServiceDetail {
+  unit: ServiceUnit;
+  properties: Record<string, string> | null;
+  journal: LogEntry[] | null;
+}
+
+export interface LogSource {
+  kind: "journal" | "unit" | "file";
+  name: string;
+  path?: string;
+  unit?: string;
+  size?: number;
+  modTime?: string;
+}
+
+export interface LogSourceList {
+  sources: LogSource[] | null;
+  logDir: string;
+}
+
+export interface FileLog {
+  path: string;
+  name: string;
+  lines: string[] | null;
+  size: number;
+  modTime: string;
+  truncated: boolean;
+}
+
+export interface ProcessInfo {
+  pid: number;
+  ppid: number;
+  uid: number;
+  user: string;
+  state: string;
+  nice: number;
+  cpuPercent: number;
+  memPercent: number;
+  rssBytes: number;
+  vmSizeBytes: number;
+  threads: number;
+  startedAt: string;
+  elapsedSec: number;
+  name: string;
+  command: string;
+}
+
+export interface ProcessList {
+  processes: ProcessInfo[] | null;
+  total: number;
+  cpuCores: number;
+  memTotalBytes: number;
+  collectedAt: string;
+}
+
+export type ProcessSort = "cpu" | "mem" | "pid" | "name" | "time";
+
+export interface PackageUpdate {
+  name: string;
+  current: string;
+  candidate: string;
+  security: boolean;
+  origin?: string;
+  action?: string;
+}
+
+export interface PackageStatus {
+  manager: string;
+  upgradable: PackageUpdate[] | null;
+  count: number;
+  securityCount: number;
+  removals: number;
+  rebootRequired: boolean;
+  rebootPackages?: string[] | null;
+  checkedAt: string;
+  stale: boolean;
+  error?: string;
+}
+
+/** A long-running administrative command whose output is polled. */
+export interface OpsJob {
+  id: string;
+  kind: string;
+  command: string;
+  running: boolean;
+  exitCode: number;
+  startedAt: string;
+  finishedAt?: string;
+  output: string[] | null;
+  truncated: boolean;
+  error?: string;
+}

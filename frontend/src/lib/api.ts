@@ -6,11 +6,21 @@ import type {
   FileContent,
   FileEntry,
   FileListing,
+  FileLog,
   FileStat,
   Health,
   LoginResponse,
+  LogEntry,
+  LogSourceList,
+  OpsAvailability,
+  OpsJob,
+  PackageStatus,
+  ProcessList,
+  ProcessSort,
   ProfileInfo,
   RecoveryCodesResponse,
+  ServiceDetail,
+  ServiceList,
   SshEffective,
   SshHost,
   SshHostInput,
@@ -436,6 +446,82 @@ export const api = {
       `/api/ssh/hosts/${encodeURIComponent(alias)}/hostkey`,
       { method: "DELETE" },
     ),
+
+  // --- host operations: services, processes, logs, packages ---------------
+
+  /** Which operations this host supports (drives the navigation and pages). */
+  opsAvailability: () => request<OpsAvailability>("/api/ops/availability"),
+
+  opsServices: () => request<ServiceList>("/api/ops/services"),
+
+  opsServiceDetail: (name: string) =>
+    request<ServiceDetail>(`/api/ops/services/${encodeURIComponent(name)}`),
+
+  opsServiceAction: (name: string, action: string) =>
+    request<{ action: string; unit: string; output: string }>(
+      `/api/ops/services/${encodeURIComponent(name)}/action`,
+      { method: "POST", body: { action } },
+    ),
+
+  opsProcesses: (params: { sort?: ProcessSort; q?: string; user?: string; limit?: number } = {}) =>
+    request<ProcessList>("/api/ops/processes", {
+      query: {
+        sort: params.sort,
+        q: params.q,
+        user: params.user,
+        limit: params.limit === undefined ? undefined : String(params.limit),
+      },
+    }),
+
+  opsProcessSignal: (pid: number, signal: string) =>
+    request<{ pid: number; signal: string }>(`/api/ops/processes/${pid}/signal`, {
+      method: "POST",
+      body: { signal },
+    }),
+
+  opsProcessNice: (pid: number, nice: number) =>
+    request<{ pid: number; nice: number }>(`/api/ops/processes/${pid}/nice`, {
+      method: "POST",
+      body: { nice },
+    }),
+
+  opsLogSources: () => request<LogSourceList>("/api/ops/logs/sources"),
+
+  opsJournal: (params: {
+    unit?: string;
+    priority?: string;
+    lines?: number;
+    since?: string;
+    search?: string;
+  }) =>
+    request<{ entries: LogEntry[] | null }>("/api/ops/logs/journal", {
+      query: {
+        unit: params.unit,
+        priority: params.priority,
+        lines: params.lines === undefined ? undefined : String(params.lines),
+        since: params.since,
+        search: params.search,
+      },
+    }),
+
+  opsLogFile: (params: { path: string; lines?: number; search?: string }) =>
+    request<FileLog>("/api/ops/logs/file", {
+      query: {
+        path: params.path,
+        lines: params.lines === undefined ? undefined : String(params.lines),
+        search: params.search,
+      },
+    }),
+
+  opsPackages: (refresh = false) =>
+    request<PackageStatus>("/api/ops/packages", { query: { refresh: refresh ? "1" : undefined } }),
+
+  opsRefreshPackages: () => request<OpsJob>("/api/ops/packages/refresh", { method: "POST" }),
+
+  opsUpgradePackages: (dist = false) =>
+    request<OpsJob>("/api/ops/packages/upgrade", { method: "POST", body: { dist } }),
+
+  opsJob: (id: string) => request<OpsJob>(`/api/ops/jobs/${encodeURIComponent(id)}`),
 };
 
 type SshHostKeyFPList = SshHostKeyInfo["fingerprints"];

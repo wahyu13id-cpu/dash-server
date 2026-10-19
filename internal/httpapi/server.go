@@ -15,6 +15,7 @@ import (
 	"dashboard/internal/files"
 	"dashboard/internal/sshsvc"
 	"dashboard/internal/sysinfo"
+	"dashboard/internal/sysops"
 	"dashboard/internal/terminal"
 )
 
@@ -27,15 +28,18 @@ type Server struct {
 	audit   *audit.Logger
 	monitor *sysinfo.Collector
 	ssh     *sshsvc.Service
+	ops     *sysops.Service
 
 	upgrader websocket.Upgrader
 }
 
 // New builds a Server. monitor may be nil, in which case the system metrics
 // endpoint reports that no snapshot is available. sshSvc may be nil, in which
-// case every SSH endpoint reports that the feature is unavailable.
-func New(cfg *config.Config, authSvc *auth.Service, filesSvc *files.Service, termMgr *terminal.Manager, auditLog *audit.Logger, monitor *sysinfo.Collector, sshSvc *sshsvc.Service) *Server {
-	s := &Server{cfg: cfg, auth: authSvc, files: filesSvc, term: termMgr, audit: auditLog, monitor: monitor, ssh: sshSvc}
+// case every SSH endpoint reports that the feature is unavailable. opsSvc may
+// be nil, in which case the host-operations endpoints report the feature as
+// unavailable.
+func New(cfg *config.Config, authSvc *auth.Service, filesSvc *files.Service, termMgr *terminal.Manager, auditLog *audit.Logger, monitor *sysinfo.Collector, sshSvc *sshsvc.Service, opsSvc *sysops.Service) *Server {
+	s := &Server{cfg: cfg, auth: authSvc, files: filesSvc, term: termMgr, audit: auditLog, monitor: monitor, ssh: sshSvc, ops: opsSvc}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  4096,
 		WriteBufferSize: 4096,
@@ -134,6 +138,22 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/ssh/hosts/{alias}/hostkey/scan", protect(s.handleSSHHostKeyScan))
 	mux.Handle("POST /api/ssh/hosts/{alias}/hostkey/trust", protect(s.handleSSHHostKeyTrust))
 	mux.Handle("DELETE /api/ssh/hosts/{alias}/hostkey", protect(s.handleSSHHostKeyForget))
+
+	// Host operations: systemd services, processes, logs, package updates.
+	mux.Handle("GET /api/ops/availability", protect(s.handleOpsAvailability))
+	mux.Handle("GET /api/ops/services", protect(s.handleOpsServices))
+	mux.Handle("GET /api/ops/services/{name}", protect(s.handleOpsServiceDetail))
+	mux.Handle("POST /api/ops/services/{name}/action", protect(s.handleOpsServiceAction))
+	mux.Handle("GET /api/ops/processes", protect(s.handleOpsProcesses))
+	mux.Handle("POST /api/ops/processes/{pid}/signal", protect(s.handleOpsProcessSignal))
+	mux.Handle("POST /api/ops/processes/{pid}/nice", protect(s.handleOpsProcessNice))
+	mux.Handle("GET /api/ops/logs/sources", protect(s.handleOpsLogSources))
+	mux.Handle("GET /api/ops/logs/journal", protect(s.handleOpsJournal))
+	mux.Handle("GET /api/ops/logs/file", protect(s.handleOpsLogFile))
+	mux.Handle("GET /api/ops/packages", protect(s.handleOpsPackages))
+	mux.Handle("POST /api/ops/packages/refresh", protect(s.handleOpsPackagesRefresh))
+	mux.Handle("POST /api/ops/packages/upgrade", protect(s.handleOpsPackagesUpgrade))
+	mux.Handle("GET /api/ops/jobs/{id}", protect(s.handleOpsJob))
 
 	// --- Static SPA (optional) --------------------------------------------
 	if s.cfg.StaticDir != "" {

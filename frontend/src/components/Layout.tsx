@@ -1,31 +1,66 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
+import type { OpsAvailability } from "../lib/types";
 import { useAuth } from "../context/AuthContext";
+import { useOps } from "../context/OpsContext";
 import { useToast } from "../context/ToastContext";
 import { Button } from "./Button";
 import { Badge } from "./Card";
 import { ConfirmDialog, Modal } from "./Modal";
 import { FloatingTerminalLayer } from "./FloatingTerminalLayer";
 import {
+  IconActivity,
+  IconBox,
+  IconCog,
   IconDashboard,
   IconFolder,
   IconKey,
   IconLogout,
   IconMenu,
   IconPlug,
+  IconScroll,
   IconServer,
   IconShield,
   IconTerminal,
   IconUser,
 } from "./Icons";
 
-const NAV_ITEMS = [
-  { to: "/", label: "Dashboard", icon: IconDashboard, end: true },
-  { to: "/terminal", label: "Terminal", icon: IconTerminal, end: false },
-  { to: "/ssh", label: "Sesi SSH", icon: IconPlug, end: false },
-  { to: "/files", label: "Files", icon: IconFolder, end: false },
-  { to: "/security", label: "Keamanan", icon: IconShield, end: false },
+type NavIcon = typeof IconDashboard;
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: NavIcon;
+  end: boolean;
+  /**
+   * Hidden when the host does not support the feature, so a host without
+   * systemd never shows a services entry that cannot work.
+   */
+  available?: (a: OpsAvailability) => boolean;
+}
+
+const NAV_GROUPS: { label?: string; items: NavItem[] }[] = [
+  {
+    items: [
+      { to: "/", label: "Dashboard", icon: IconDashboard, end: true },
+      { to: "/terminal", label: "Terminal", icon: IconTerminal, end: false },
+      { to: "/ssh", label: "Sesi SSH", icon: IconPlug, end: false },
+      { to: "/files", label: "Files", icon: IconFolder, end: false },
+    ],
+  },
+  {
+    label: "Sistem",
+    items: [
+      { to: "/services", label: "Layanan", icon: IconCog, end: false, available: (a) => a.systemd },
+      { to: "/processes", label: "Proses", icon: IconActivity, end: false, available: (a) => a.processes },
+      { to: "/logs", label: "Log", icon: IconScroll, end: false, available: (a) => a.journal || !!a.logDir },
+      { to: "/packages", label: "Pembaruan", icon: IconBox, end: false, available: (a) => !!a.packageManager },
+    ],
+  },
+  {
+    items: [{ to: "/security", label: "Keamanan", icon: IconShield, end: false }],
+  },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
@@ -33,6 +68,10 @@ const PAGE_TITLES: Record<string, string> = {
   "/terminal": "Terminal",
   "/ssh": "Sesi SSH",
   "/files": "File Manager",
+  "/services": "Layanan Sistem",
+  "/processes": "Proses",
+  "/logs": "Log Sistem",
+  "/packages": "Pembaruan Paket",
   "/security": "Keamanan",
   "/profile": "Profil saya",
 };
@@ -63,6 +102,7 @@ function useMediaQuery(query: string) {
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const { availability } = useOps();
   const toast = useToast();
   const location = useLocation();
   const navigate = useNavigate();
@@ -163,19 +203,35 @@ export function Layout() {
         </div>
 
         <nav className="sidebar__nav" aria-label="Navigasi utama">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
+          {NAV_GROUPS.map((group, index) => {
+            const items = group.items.filter(
+              (item) => !item.available || !availability || item.available(availability),
+            );
+            if (items.length === 0) return null;
             return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon width={18} height={18} />
-                {!collapsed && <span>{item.label}</span>}
-              </NavLink>
+              <div className="nav-group" key={group.label ?? `group-${index}`}>
+                {group.label &&
+                  (collapsed ? (
+                    <div className="nav-group__divider" aria-hidden="true" />
+                  ) : (
+                    <div className="nav-group__label">{group.label}</div>
+                  ))}
+                {items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}
+                      title={collapsed ? item.label : undefined}
+                    >
+                      <Icon width={18} height={18} />
+                      {!collapsed && <span>{item.label}</span>}
+                    </NavLink>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>

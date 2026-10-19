@@ -90,6 +90,19 @@ type Config struct {
 	// the built-in sampler and are unaffected by this switch.
 	SSHStats bool
 
+	// OpsEnabled turns the host-operations pages (systemd services, processes,
+	// logs, package updates) on or off.
+	OpsEnabled bool
+	// OpsSystemctlBin and OpsJournalctlBin are the executables used for service
+	// control and journal reads. Set OpsSystemctlBin to an empty path to
+	// disable service control on hosts without systemd.
+	OpsSystemctlBin  string
+	OpsJournalctlBin string
+	// OpsLogDir is the only directory the log reader may read from.
+	OpsLogDir string
+	// OpsProcRoot is the procfs mount point (normally /proc).
+	OpsProcRoot string
+
 	// MaxReadSize is the maximum bytes returned by the file content endpoint.
 	MaxReadSize int64
 	// MaxWriteSize is the maximum bytes accepted by the file write endpoint.
@@ -144,6 +157,11 @@ func Load() (*Config, error) {
 		SSHKeyscanBin:       env("DASH_SSH_KEYSCAN_BIN", "ssh-keyscan"),
 		SSHKeygenBin:        env("DASH_SSH_KEYGEN_BIN", "ssh-keygen"),
 		SSHStats:            envBool("DASH_SSH_STATS", true),
+		OpsEnabled:          envBool("DASH_OPS_ENABLED", true),
+		OpsSystemctlBin:     env("DASH_OPS_SYSTEMCTL_BIN", "systemctl"),
+		OpsJournalctlBin:    env("DASH_OPS_JOURNALCTL_BIN", "journalctl"),
+		OpsLogDir:           env("DASH_OPS_LOG_DIR", "/var/log"),
+		OpsProcRoot:         env("DASH_OPS_PROC_ROOT", "/proc"),
 		MaxReadSize:         envBytes("DASH_MAX_READ_SIZE", 2<<20),
 		MaxWriteSize:        envBytes("DASH_MAX_WRITE_SIZE", 5<<20),
 		MaxListEntries:      envInt("DASH_MAX_LIST_ENTRIES", 5000),
@@ -439,4 +457,3 @@ func parseEnvFile(data []byte) map[string]string {
 	}
 	return out
 }
-

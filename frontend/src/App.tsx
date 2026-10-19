@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { OpsProvider } from "./context/OpsContext";
 import { ToastProvider } from "./context/ToastContext";
 import { Layout } from "./components/Layout";
 import { Toaster } from "./components/Toaster";
@@ -11,6 +12,10 @@ import { FilesPage } from "./pages/FilesPage";
 import { SecurityPage } from "./pages/SecurityPage";
 import { SshPage } from "./pages/SshPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { ServicesPage } from "./pages/ServicesPage";
+import { ProcessesPage } from "./pages/ProcessesPage";
+import { LogsPage } from "./pages/LogsPage";
+import { PackagesPage } from "./pages/PackagesPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -37,7 +42,9 @@ export default function App() {
             <Route
               element={
                 <RequireAuth>
-                  <Layout />
+                  <OpsProvider>
+                    <Layout />
+                  </OpsProvider>
                 </RequireAuth>
               }
             >
@@ -45,6 +52,10 @@ export default function App() {
               <Route path="/terminal" element={<TerminalPage />} />
               <Route path="/ssh" element={<SshPage />} />
               <Route path="/files" element={<FilesPage />} />
+              <Route path="/services" element={<ServicesPage />} />
+              <Route path="/processes" element={<ProcessesPage />} />
+              <Route path="/logs" element={<LogsPage />} />
+              <Route path="/packages" element={<PackagesPage />} />
               <Route path="/security" element={<SecurityPage />} />
               <Route path="/profile" element={<ProfilePage />} />
             </Route>

@@ -22,6 +22,7 @@ import (
 	"dashboard/internal/sshsecret"
 	"dashboard/internal/sshsvc"
 	"dashboard/internal/sysinfo"
+	"dashboard/internal/sysops"
 	"dashboard/internal/terminal"
 	"dashboard/internal/workspace"
 	"dashboard/migrations"
@@ -42,6 +43,8 @@ type testEnv struct {
 	store   *auth.Store
 	monitor *sysinfo.Collector
 	ssh     *sshsvc.Service
+	ops     *sysops.Service
+	opsLog  string
 	sshHome string
 	close   func()
 }
@@ -154,7 +157,53 @@ func newTestEnv(t *testing.T) *testEnv {
 	monCtx, monCancel := context.WithCancel(ctx)
 	mon.Start(monCtx)
 
-	srv := New(cfg, authSvc, filesSvc, termMgr, auditLog, mon, sshSvc)
+	// Host operations against fakes: a scripted systemctl/journalctl and a
+	// throwaway log directory, so the tests never touch the real host.
+	fakeBin := filepath.Join(root, "fake-systemctl")
+	systemdRuntime := filepath.Join(root, "systemd-runtime")
+	if err := os.MkdirAll(systemdRuntime, 0o755); err != nil {
+		t.Fatalf("mkdir systemd runtime: %v", err)
+	}
+	opsLogDir := filepath.Join(root, "logdir")
+	if err := os.MkdirAll(opsLogDir, 0o755); err != nil {
+		t.Fatalf("mkdir log dir: %v", err)
+	}
+	fakeSystemctl := `#!/bin/sh
+case "$1" in
+  list-units)
+    printf '  nginx.service   loaded    active   running  A web server\n'
+    printf '  cron.service    loaded    inactive dead     Periodic jobs\n'
+    printf '  broken.service  loaded    failed   failed   Crash loop\n'
+    ;;
+  list-unit-files)
+    printf 'nginx.service   enabled   enabled\n'
+    printf 'cron.service    disabled  disabled\n'
+    printf 'broken.service  static    -\n'
+    ;;
+  show)
+    printf 'Id=%s\nDescription=Dummy unit\nLoadState=loaded\nActiveState=active\nSubState=running\nUnitFileState=enabled\nMainPID=4242\nMemoryCurrent=2097152\nExecMainStartTimestamp=now\nFragmentPath=/lib/systemd/system/%s\nNRestarts=3\nRestart=on-failure\n' "$2" "$2"
+    ;;
+  *)
+    echo "systemctl $*"
+    ;;
+esac
+exit 0
+`
+	if err := os.WriteFile(fakeBin, []byte(fakeSystemctl), 0o755); err != nil {
+		t.Fatalf("write fake systemctl: %v", err)
+	}
+
+	opsSvc := sysops.New(sysops.Config{
+		Enabled:        true,
+		SystemctlBin:   fakeBin,
+		JournalctlBin:  fakeBin,
+		LogDir:         opsLogDir,
+		ProcRoot:       "/proc",
+		RuntimeDir:     systemdRuntime,
+		PackageManager: "apt",
+	})
+
+	srv := New(cfg, authSvc, filesSvc, termMgr, auditLog, mon, sshSvc, opsSvc)
 	ts := httptest.NewServer(srv.Handler())
 
 	return &testEnv{
@@ -166,6 +215,8 @@ func newTestEnv(t *testing.T) *testEnv {
 		store:   authStore,
 		monitor: mon,
 		ssh:     sshSvc,
+		ops:     opsSvc,
+		opsLog:  opsLogDir,
 		sshHome: sshHome,
 		close: func() {
 			monCancel()

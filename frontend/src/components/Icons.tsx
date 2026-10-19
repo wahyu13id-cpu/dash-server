@@ -419,3 +419,32 @@ export const IconEyeOff = (p: IconProps) => (
     <path d="M10 10.2a2.9 2.9 0 0 0 4 4" />
   </Base>
 );
+
+export const IconCog = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 3.5v2.2M12 18.3v2.2M4.9 7.9l1.9 1.1M17.2 15l1.9 1.1M4.9 16.1l1.9-1.1M17.2 9l1.9-1.1" />
+  </Base>
+);
+
+export const IconBox = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M20.5 7.8v8.4a1.6 1.6 0 0 1-.8 1.4l-6.9 3.7a1.6 1.6 0 0 1-1.6 0L4.3 17.6a1.6 1.6 0 0 1-.8-1.4V7.8" />
+    <path d="M3.8 7.4l7.4-3.6a1.6 1.6 0 0 1 1.6 0l7.4 3.6-7.4 3.9z" />
+    <path d="M12 11.3v9.7" />
+  </Base>
+);
+
+export const IconScroll = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M6.5 3.5h11a1 1 0 0 1 1 1v13a3 3 0 0 0 3 3h-13a3 3 0 0 1-3-3v-13a1 1 0 0 1 1-1z" />
+    <path d="M8.5 8h7M8.5 11.5h7M8.5 15h4" />
+  </Base>
+);
+
+export const IconClock = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="8.6" />
+    <path d="M12 7.4V12l3 1.8" />
+  </Base>
+);

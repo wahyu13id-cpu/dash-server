@@ -1260,6 +1260,13 @@ DASH_SSH_STATS=true
 # ---- Pemantauan host -------------------------------------------------------
 DASH_MONITOR_INTERVAL=1s
 
+# ---- Operasi host (layanan, proses, log, pembaruan paket) -------------------
+DASH_OPS_ENABLED=true
+DASH_OPS_SYSTEMCTL_BIN=systemctl
+DASH_OPS_JOURNALCTL_BIN=journalctl
+DASH_OPS_LOG_DIR=/var/log
+DASH_OPS_PROC_ROOT=/proc
+
 # ---- Autentikasi dua faktor (TOTP) -----------------------------------------
 DASH_TOTP_ISSUER=${TOTP_ISSUER}
 

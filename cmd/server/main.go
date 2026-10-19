@@ -30,6 +30,7 @@ import (
 	"dashboard/internal/sshsecret"
 	"dashboard/internal/sshsvc"
 	"dashboard/internal/sysinfo"
+	"dashboard/internal/sysops"
 	"dashboard/internal/terminal"
 	"dashboard/internal/workspace"
 	"dashboard/migrations"
@@ -318,7 +319,22 @@ func run() error {
 	monitor := sysinfo.New(cfg.MonitorInterval)
 	monitor.Start(ctx)
 
-	api := httpapi.New(cfg, authSvc, filesSvc, termMgr, auditLog, monitor, sshSvc)
+	// Host operations: systemd services, processes, logs, package updates.
+	opsSvc := sysops.New(sysops.Config{
+		Enabled:       cfg.OpsEnabled,
+		SystemctlBin:  cfg.OpsSystemctlBin,
+		JournalctlBin: cfg.OpsJournalctlBin,
+		LogDir:        cfg.OpsLogDir,
+		ProcRoot:      cfg.OpsProcRoot,
+	})
+	if cfg.OpsEnabled {
+		slog.Info("host operations ready",
+			"systemctl", cfg.OpsSystemctlBin,
+			"journalctl", cfg.OpsJournalctlBin,
+			"logdir", cfg.OpsLogDir)
+	}
+
+	api := httpapi.New(cfg, authSvc, filesSvc, termMgr, auditLog, monitor, sshSvc, opsSvc)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,

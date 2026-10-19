@@ -129,6 +129,41 @@ Go modular monolith, frontend React + TypeScript.
   tidak lagi hilang saat halaman di-scroll**: menu terikat pada baris/area tempat ia dibuka dan
   ikut bergerak bersama konten, baru menutup kalau barisnya benar-benar keluar dari layar
   (posisinya tetap dijepit agar tidak keluar viewport).
+- **Halaman Sistem (operasional inti)**: empat panel baru di grup menu **Sistem**, semuanya
+  menjalankan perintah lewat `exec` dengan argumen tetap (tanpa shell) dan memvalidasi apa pun
+  yang datang dari permintaan:
+  - **Layanan** — daftar seluruh unit `.service` (status runtime dari `systemctl list-units`
+    digabung status boot dari `list-unit-files`), pencarian, filter *Semua/Berjalan/Berhenti/
+    Gagal* berikut jumlahnya, dan penyegaran otomatis. Aksi **mulai / mulai ulang / hentikan**
+    tersedia per baris (hentikan & mulai ulang lewat konfirmasi). Klik nama unit membuka detail:
+    properti penting (`ActiveState`, `FragmentPath`, PID utama, memori, waktu mulai, kebijakan
+    `Restart`), ringkasan **log terakhir unit**, serta tombol aksi. Nama unit divalidasi sebagai
+    `*.service` sehingga halaman ini tidak bisa menyentuh mount/socket/timer.
+  - **Proses** — daftar proses dibaca langsung dari `/proc` (tanpa `ps`), berisi PID, pengguna,
+    perintah, **CPU%**, **memori%**, RSS, status, umur proses, dan prioritas. Bisa dicari
+    (PID/nama/perintah/pengguna), diurutkan menurut CPU, memori, umur, nama, atau PID, dan
+    disegarkan otomatis tiap 3 detik. Aksi per baris: mengubah **nice** (−5/0/10/19) dan
+    mengirim **SIGTERM** dengan konfirmasi. PID 1 (init) sengaja selalu ditolak.
+  - **Log** — penampil log terpusat: pilih sumber dari daftar di kiri (journal sistem, journal
+    **per unit**, atau berkas di `/var/log`) lalu baca di kanan. Untuk journal tersedia filter
+    **level** (err/warning/notice/info/debug), **rentang waktu** (15 menit … 7 hari, atau sejak
+    boot), jumlah baris (100–2000), dan pencarian teks (dijalankan di seluruh journal, bukan
+    hanya baris yang tampil). Ada mode **otomatis 3 detik** yang menempel ke baris terbaru selama
+    posisi scroll masih di bawah, tombol **bungkus baris**, **salin**, dan **unduh** `.txt`.
+    Pembacaan berkas dibatasi pada `DASH_OPS_LOG_DIR` dan symlink diselesaikan lalu diverifikasi
+    ulang, jadi jalur seperti `../` atau symlink keluar direktori tetap ditolak.
+  - **Pembaruan** — ringkasan jumlah pembaruan, **pembaruan keamanan**, paket yang akan dihapus,
+    dan penanda **perlu reboot** (dari `/var/run/reboot-required` + daftar paketnya). Daftar
+    paket yang bisa diperbarui menampilkan versi terpasang → kandidat beserta asalnya.
+    `Perbarui daftar paket` (apt-get update / dnf makecache) dan `Tingkatkan semua`
+    (apt-get upgrade / dnf upgrade, opsional **dist-upgrade**) berjalan sebagai **pekerjaan latar
+    belakang**: respons langsung kembali, keluaran perintah dialirkan ke panel yang bisa dipantau
+    sampai selesai, sehingga permintaan HTTP tidak pernah menunggu puluhan menit atau terputus
+    timeout. Mendukung **apt** (Debian/Ubuntu) dan **dnf/yum** (RHEL/Fedora); halaman lain
+    otomatis menyembunyikan diri bila host tidak memilikinya.
+  Setiap aksi yang mengubah keadaan (kontrol layanan, sinyal proses, ubah prioritas, pembaruan
+  paket) dicatat ke **audit log** bersama pengguna dan IP-nya; percobaan dengan nilai tidak sah
+  juga tercatat sebagai `security.denied`.
 - **UI**: sidebar dapat diciutkan, responsif untuk desktop/tablet/ponsel, serta loading,
   empty, dan error state di semua halaman.
 
@@ -153,6 +188,7 @@ Backend memisahkan **handler HTTP**, **business logic**, dan **akses data**:
 │   ├── sshsecret/         # kredensial SSH terenkripsi (AES-256-GCM + HKDF)
 │   ├── sshaskpass/        # broker SSH_ASKPASS via unix socket (0600)
 │   ├── sysinfo/           # sampling metrik host dari /proc (CPU/memori/disk/net/proses)
+│   ├── sysops/            # operasi host: systemd, proses+sinyal, log, pembaruan paket
 │   ├── workspace/         # validasi batas akses filesystem (sandbox opsional)
 │   ├── audit/             # pencatatan aksi penting
 │   └── httpapi/           # routing, middleware, handler HTTP + WebSocket
@@ -477,6 +513,11 @@ Ringkasan variabel:
 | `DASH_SSH_KEYSCAN_BIN` | `ssh-keyscan` | Dipakai saat memindai kunci host. |
 | `DASH_SSH_KEYGEN_BIN` | `ssh-keygen` | Dipakai untuk `known_hosts` (`-F`/`-R`) dan sidik jari kunci. |
 | `DASH_SSH_STATS` | `true` | Probe read-only untuk angka host **remote** pada status strip terminal (CPU, memori, bandwidth, disk). Sesi shell lokal tidak terpengaruh; set `false` untuk mematikan probe sekaligus. |
+| `DASH_OPS_ENABLED` | `true` | Aktifkan halaman **Sistem**: manajer layanan systemd, daftar proses, penampil log, dan info pembaruan paket. |
+| `DASH_OPS_SYSTEMCTL_BIN` | `systemctl` | Binary systemd untuk kontrol layanan. Kosongkan untuk mematikan kontrol layanan pada host tanpa systemd. |
+| `DASH_OPS_JOURNALCTL_BIN` | `journalctl` | Binary journalctl untuk membaca journal systemd. |
+| `DASH_OPS_LOG_DIR` | `/var/log` | Satu-satunya direktori yang boleh dibaca penampil log. Symlink diselesaikan lalu diverifikasi ulang agar tidak bisa keluar dari direktori ini. |
+| `DASH_OPS_PROC_ROOT` | `/proc` | Titik mount procfs untuk daftar proses dan sinyal. |
 | `DASH_MAX_READ_SIZE` | `2M` | Batas baca file (endpoint content). |
 | `DASH_MAX_WRITE_SIZE` | `5M` | Batas tulis file. |
 | `DASH_MAX_UPLOAD_SIZE` | `512M` | Batas ukuran **satu berkas** yang diunggah lewat file manager. Wajib diselaraskan dengan `client_max_body_size 512m;` pada nginx, karena proxy menolak lebih dulu sebelum aplikasi sempat membaca body. |
@@ -557,6 +598,20 @@ cookie `dash_csrf`.
 | `POST` | `/api/ssh/hosts/{alias}/hostkey/scan` | ✅ | Pindai kunci host (`ssh-keyscan`) untuk dibandingkan sidik jarinya. |
 | `POST` | `/api/ssh/hosts/{alias}/hostkey/trust` | ✅ | Setujui kunci host dan tulis ke `known_hosts` (trust-on-first-use eksplisit). |
 | `DELETE` | `/api/ssh/hosts/{alias}/hostkey` | ✅ | Hapus entri host dari `known_hosts`. |
+| `GET` | `/api/ops/availability` | ✅ | Kemampuan host: `systemd`, `journal`, `processes`, `packageManager` (`apt`/`dnf`/`yum`/kosong), `rebootRequired`, `logDir`. Dipakai UI untuk menyembunyikan menu yang tidak didukung. |
+| `GET` | `/api/ops/services` | ✅ | Daftar seluruh unit `.service`: status runtime (`load`,`active`,`sub`), status boot (`unitFile`), keterangan, plus ringkasan jumlah berjalan/gagal. |
+| `GET` | `/api/ops/services/{unit}` | ✅ | Detail satu unit: properti `systemctl show` terpilih, plus 100 entri log terakhir unit tersebut. |
+| `POST` | `/api/ops/services/{unit}/action` | ✅ | Jalankan aksi (`{"action":"start\|stop\|restart\|reload\|try-restart\|enable\|disable\|mask\|unmask"}`). Nama unit wajib berakhiran `.service`. |
+| `GET` | `/api/ops/processes?sort=&q=&user=&limit=` | ✅ | Tabel proses dari `/proc`: PID, induk, pengguna, status, nice, CPU%, memori%, RSS, jumlah thread, umur. `sort` ∈ `cpu`/`mem`/`pid`/`name`/`time`. |
+| `POST` | `/api/ops/processes/{pid}/signal` | ✅ | Kirim sinyal (`{"signal":"TERM\|KILL\|INT\|HUP\|QUIT\|USR1\|USR2\|STOP\|CONT\|ABRT\|ALRM"}`). PID 1 selalu ditolak. |
+| `POST` | `/api/ops/processes/{pid}/nice` | ✅ | Ubah prioritas (`{"nice":-20…19}`). |
+| `GET` | `/api/ops/logs/sources` | ✅ | Sumber log yang bisa dipilih: journal sistem, journal per unit, dan berkas di `DASH_OPS_LOG_DIR`. |
+| `GET` | `/api/ops/logs/journal?unit=&priority=&since=&lines=&search=` | ✅ | Entri journal terstruktur (`time`,`priority`,`unit`,`identifier`,`pid`,`message`). `priority` ∈ `emerg…debug`, `since` ∈ `15m`/`1h`/`24h`/`7d`/`boot`/`today`/`yesterday`, `lines` ≤ 2000, `search` dijalankan di seluruh journal (literal, tanpa regex). |
+| `GET` | `/api/ops/logs/file?path=&lines=&search=` | ✅ | Ekor satu berkas log. Path wajib berada di dalam `DASH_OPS_LOG_DIR` (symlink diselesaikan ulang dan diperiksa) dan wajib berkas biasa; maksimal 1 MiB terakhir dibaca. |
+| `GET` | `/api/ops/packages?refresh=1` | ✅ | Status pembaruan: daftar paket (versi terpasang → kandidat, asal, penanda keamanan), jumlah, `removals`, `rebootRequired` + paket pemicunya. Hasil simulasi di-cache 5 menit; `refresh=1` memaksa perhitungan ulang. |
+| `POST` | `/api/ops/packages/refresh` | ✅ | Mulai pekerjaan latar belakang `apt-get update` / `dnf makecache`. Mengembalikan objek pekerjaan (`202`). |
+| `POST` | `/api/ops/packages/upgrade` | ✅ | Mulai pekerjaan latar belakang peningkatan paket (`{"dist":false\|true}`). `202` + objek pekerjaan. |
+| `GET` | `/api/ops/jobs/{id}` | ✅ | Status pekerjaan latar belakang: `running`, `exitCode`, `output` (maks. 4000 baris terakhir), `truncated`, `error`. |
 
 Contoh:
 

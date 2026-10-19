@@ -51,6 +51,12 @@ const (
 	ActionSSHSecretSet    = "ssh.secret_set"
 	ActionSSHSecretClear  = "ssh.secret_clear"
 	ActionSSHConfigWrite  = "ssh.config_write"
+	ActionServiceControl  = "service.control"
+	ActionProcessSignal   = "process.signal"
+	ActionProcessNice     = "process.nice"
+	ActionLogRead         = "log.read"
+	ActionPackageRefresh  = "package.refresh"
+	ActionPackageUpgrade  = "package.upgrade"
 )
 
 // Entry describes a single audited event.
