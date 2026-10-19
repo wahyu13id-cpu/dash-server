@@ -48,9 +48,26 @@ type Session struct {
 	cleanup   func()
 	closeOnce sync.Once
 
+	// pumpDone is closed by the PTY reader once it has drained the master,
+	// reaped once the process exit code is known and done when the teardown
+	// finished. Closing a session waits on the first two (see settle) so the
+	// last output and the exit code are never lost, and on done so concurrent
+	// closers observe a session that is fully released.
+	pumpDone chan struct{}
+	reaped   chan struct{}
+	done     chan struct{}
+	// closing marks the goroutine that owns the teardown.
+	closing bool
+
 	waitOnce sync.Once
 	waitErr  error
 }
+
+// ptyDrainGrace bounds the wait for the PTY reader when the process is already
+// gone. A read on a master whose child has exited returns within microseconds,
+// so this is only a safety net for a file descriptor that a surviving process
+// (a background job that inherited the slave) keeps open.
+const ptyDrainGrace = 500 * time.Millisecond
 
 // ID returns the session identifier.
 func (s *Session) ID() string { return s.id }
@@ -159,9 +176,41 @@ func (s *Session) pump() {
 			s.broadcast(chunk)
 		}
 		if err != nil {
-			s.finish()
-			return
+			break
 		}
+	}
+	// The PTY is drained: every byte the process wrote is in the scrollback
+	// now, so the session can be closed without losing output. Close the gate
+	// before finish() so a concurrent settle() returns immediately.
+	close(s.pumpDone)
+	s.finish()
+}
+
+// settle waits until the session's terminal state is complete: the exit code of
+// the process is known and the reader has handed over everything the process
+// wrote before it ended. Closing the session before that would hand a client an
+// empty terminal (a refused ssh connection, a one-shot command) or an end of
+// stream without an exit code. Both waits are bounded, so a process that
+// ignores signals or a descriptor held open by a straggler cannot block a
+// close.
+func (s *Session) settle() {
+	s.mu.Lock()
+	started := s.cmd != nil
+	pumpDone, reaped := s.pumpDone, s.reaped
+	s.mu.Unlock()
+	if !started {
+		return
+	}
+	for _, gate := range []chan struct{}{pumpDone, reaped} {
+		if gate == nil {
+			continue
+		}
+		timer := time.NewTimer(ptyDrainGrace)
+		select {
+		case <-gate:
+		case <-timer.C:
+		}
+		timer.Stop()
 	}
 }
 
@@ -185,6 +234,8 @@ func (s *Session) reap() {
 		}
 	}
 	s.waitOnce.Do(func() {})
+	// The exit code is known: release anyone waiting on it before closing.
+	close(s.reaped)
 	// Signal subscribers that the process ended.
 	s.notifyExit(code)
 	s.finish()
@@ -193,10 +244,26 @@ func (s *Session) reap() {
 // finish closes the PTY once and notifies listeners.
 func (s *Session) finish() {
 	s.mu.Lock()
-	if s.closed {
+	if s.closing {
+		// Another goroutine (the reader, the reaper or Close) owns the
+		// teardown; wait for it to finish so callers never observe a session
+		// that is half closed.
+		done := s.done
 		s.mu.Unlock()
+		if done != nil {
+			<-done
+		}
 		return
 	}
+	s.closing = true
+	s.mu.Unlock()
+
+	// Let the exit code and the last output arrive before the subscribers are
+	// closed. Note that s.closed stays false until then, so output the reader
+	// still has in flight is broadcast rather than dropped.
+	s.settle()
+
+	s.mu.Lock()
 	s.closed = true
 	subs := s.subscribers
 	s.subscribers = map[int64]chan []byte{}
@@ -216,6 +283,7 @@ func (s *Session) finish() {
 	if onClose != nil {
 		onClose()
 	}
+	close(s.done)
 }
 
 // runCleanup releases per-session resources exactly once.
@@ -332,11 +400,20 @@ func (s *Session) LastActivity() time.Time {
 	return s.lastActivity
 }
 
-// Close terminates the process session and releases the PTY.
+// Close terminates the process session and releases the PTY. It returns once
+// the session has been released, so a caller that closes a session and then
+// looks it up again always finds it gone.
 func (s *Session) Close() {
 	s.mu.Lock()
-	if s.closed {
+	if s.closing {
+		// The reader or the reaper is already closing this session; killing
+		// the process again could hit a recycled PID. Just wait for the
+		// teardown to complete.
+		done := s.done
 		s.mu.Unlock()
+		if done != nil {
+			<-done
+		}
 		return
 	}
 	pid := 0

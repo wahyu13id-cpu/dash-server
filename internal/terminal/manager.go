@@ -232,6 +232,9 @@ func (m *Manager) Create(ctx context.Context, userID int64, username string, spe
 		status:          "starting",
 		scrollbackLimit: m.cfg.ScrollbackBytes,
 		subscribers:     make(map[int64]chan []byte),
+		pumpDone:        make(chan struct{}),
+		reaped:          make(chan struct{}),
+		done:            make(chan struct{}),
 	}
 	sess.onCloseFunc = func() { m.handleSessionClosed(sess) }
 	m.sessions[id] = sess
