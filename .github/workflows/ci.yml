@@ -31,7 +31,26 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./...
+        run: |
+          set -o pipefail
+          go test ./... 2>&1 | tee /tmp/go-test.log
+
+      # Ringkasan kegagalan yang bisa dibaca tanpa login: log job di API GitHub
+      # butuh token, sementara ringkasan check-run dan anotasinya terbuka untuk
+      # repo publik. Jadi kutipan keluaran 'go test' ditaruh di sana.
+      - name: Ringkas kegagalan tes
+        if: failure()
+        run: |
+          {
+            echo '### Keluaran `go test` yang gagal'
+            echo
+            echo '```'
+            awk '/^--- FAIL|^panic:|^    --- FAIL/{p=1} p' /tmp/go-test.log | tail -c 40000
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^ *--- FAIL|^panic:' /tmp/go-test.log | head -20 | while read -r line; do
+            echo "::error title=Kegagalan tes::${line}"
+          done
 
       - name: Build
         env:
